@@ -1,0 +1,72 @@
+﻿# Root-level Git ignore rules for collaboration-safe PaperClaw repo
+
+# Secrets and local env files
+.env
+.env.local
+.env.*.local
+**/.env
+**/.env.local
+**/.env.*.local
+*.pem
+*.key
+*.p12
+*.secret
+secrets.*
+config.local.*
+
+# Python
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/.hypothesis/
+**/.coverage
+**/.coverage.*
+**/htmlcov/
+**/.venv/
+**/venv/
+**/ENV/
+**/env/
+
+# Node / frontend build output
+**/node_modules/
+**/dist/
+**/build/
+**/.vite/
+**/*.tsbuildinfo
+
+# Local databases, uploads, vector/index stores, generated assets
+paper_uploads/
+data/
+**/uploads/
+**/local_files/
+**/cache/
+**/logs/
+*.sqlite3
+*.sqlite3-journal
+*.db
+*.log
+
+# OS / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Backups / local git metadata backups
+Paperclaw/.git.backup-*/
+
+# Personal presentation assets kept locally only
+ChatGPT Image *.png
+PaperClaw 介绍.docx
+~$perClaw 介绍.docx
+介绍.mp4
+架构设计草稿.pptx
+用户关系管理示意图.png
+研究者界面设计图.png
+
+paperclaw_backend/pip

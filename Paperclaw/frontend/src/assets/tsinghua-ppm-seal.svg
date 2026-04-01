@@ -1,0 +1,25 @@
+<svg width="480" height="480" viewBox="0 0 480 480" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <path id="ring-top" d="M 75 240 A 165 165 0 0 1 405 240" />
+    <path id="ring-bottom" d="M 405 240 A 165 165 0 0 1 75 240" />
+  </defs>
+  <circle cx="240" cy="240" r="214" stroke="currentColor" stroke-width="10" />
+  <circle cx="240" cy="240" r="178" stroke="currentColor" stroke-width="6" />
+  <text font-size="24" font-family="'Times New Roman', serif" letter-spacing="0.03em" fill="currentColor">
+    <textPath href="#ring-top" startOffset="50%" text-anchor="middle">School of Public Policy &amp; Management</textPath>
+  </text>
+  <text font-size="30" font-family="'Noto Serif SC', 'SimSun', serif" letter-spacing="0.16em" fill="currentColor">
+    <textPath href="#ring-bottom" startOffset="50%" text-anchor="middle">清华大学公共管理学院</textPath>
+  </text>
+
+  <g transform="translate(240 245)" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M -78 -116 C -88 -130 -70 -154 -40 -154 L 40 -154 C 70 -154 88 -130 78 -116 L 58 118 C 56 136 40 150 20 150 H -20 C -40 150 -56 136 -58 118 Z" stroke-width="8" />
+    <path d="M -50 -112 L 50 -112 L 40 84 C 38 102 25 114 10 114 H -10 C -25 114 -38 102 -40 84 Z" fill="currentColor" stroke="currentColor" stroke-width="4" />
+    <path d="M -26 -72 H 26" stroke="#F8F4EE" stroke-width="6" />
+    <path d="M -12 -42 C -2 -24 6 -12 24 8 C 6 10 -4 14 -18 24 C -8 4 -10 -10 -18 -28 Z" fill="#F8F4EE" stroke="#F8F4EE" stroke-width="4" />
+    <path d="M -30 36 C -10 16 10 16 30 36" stroke="#F8F4EE" stroke-width="6" />
+    <path d="M -48 84 C -30 92 -18 104 -8 118" stroke-width="7" />
+    <path d="M 48 84 C 30 92 18 104 8 118" stroke-width="7" />
+    <path d="M -72 132 C -44 122 -14 122 0 136 C 14 122 44 122 72 132" stroke-width="8" />
+  </g>
+</svg>
