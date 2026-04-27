@@ -60,6 +60,9 @@ from app.schemas.agent import (
     AgentQueryResponse,
     AgentSourceStatus,
     BuiltinCollectionOption,
+    SemanticSearchChunkItem,
+    SemanticSearchRequest,
+    SemanticSearchResponse,
 )
 from app.schemas.auth import (
     CreatePrivilegedUserRequest,
@@ -88,6 +91,9 @@ __all__ = [
     "AgentExternalEvidenceItem",
     "AgentSourceStatus",
     "BuiltinCollectionOption",
+    "SemanticSearchRequest",
+    "SemanticSearchChunkItem",
+    "SemanticSearchResponse",
     "AdvisorSubFieldBase",
     "AdvisorSubFieldCreate",
     "AdvisorSubFieldResponse",

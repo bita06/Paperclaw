@@ -70,3 +70,5 @@ PaperClaw 介绍.docx
 研究者界面设计图.png
 
 paperclaw_backend/pip
+*.log
+check_import.py

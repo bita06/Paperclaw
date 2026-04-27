@@ -38,7 +38,6 @@ export function ResearchQAPage() {
   const [question, setQuestion] = useState(defaultQuestion);
   const [answerMode, setAnswerMode] = useState<ResearchQaMode>("concept_positioning");
   const [includeBuiltinLibrary, setIncludeBuiltinLibrary] = useState(true);
-  const [includeUserUploads, setIncludeUserUploads] = useState(false);
   const [includeWebSearch, setIncludeWebSearch] = useState(false);
   const [includeWosSearch, setIncludeWosSearch] = useState(false);
   const [agentResponse, setAgentResponse] = useState<AgentQueryResponse | null>(null);
@@ -60,10 +59,6 @@ export function ResearchQAPage() {
 
   const builtinEvidence = useMemo(
     () => (agentResponse?.local_evidence ?? []).filter((item) => item.source === "builtin_library"),
-    [agentResponse],
-  );
-  const uploadEvidence = useMemo(
-    () => (agentResponse?.local_evidence ?? []).filter((item) => item.source === "user_upload"),
     [agentResponse],
   );
   const wosEvidence = agentResponse?.wos_evidence ?? [];
@@ -127,7 +122,7 @@ export function ResearchQAPage() {
       setStatus({ type: "error", message: "当前没有可用的研究者上下文。" });
       return;
     }
-    if (!includeBuiltinLibrary && !includeUserUploads && !includeWebSearch && !includeWosSearch) {
+    if (!includeBuiltinLibrary && !includeWebSearch && !includeWosSearch) {
       setStatus({ type: "error", message: "请至少启用一种证据来源。" });
       return;
     }
@@ -141,7 +136,6 @@ export function ResearchQAPage() {
         researcher_id: isPrivileged ? resolvedResearcherId : undefined,
         advisor_id: selectedAdvisorId || undefined,
         include_builtin_library: includeBuiltinLibrary,
-        include_user_uploads: includeUserUploads,
         include_web: includeWebSearch,
         include_wos: includeWosSearch,
         collection_slug: includeBuiltinLibrary ? selectedCollectionSlug || undefined : undefined,
@@ -152,7 +146,7 @@ export function ResearchQAPage() {
       if (!result.local_evidence.length && !result.wos_evidence.length && !result.web_evidence.length) {
         setStatus({
           type: "info",
-          message: "当前已返回结构化回答，但所选来源未提供足够证据。建议补充内置文献、上传个人文献，或开启 Web of Science。",
+          message: "当前已返回结构化回答，但所选来源未提供足够证据。建议先导入系统内置文献库，或再开启 Web of Science。",
         });
       }
     } catch (error) {
@@ -169,10 +163,10 @@ export function ResearchQAPage() {
       <article key={`${item.source}-${item.paper_id}-${item.section_title ?? "summary"}`} className="evidence-entry">
         <div className="citation-topline">
           <span className="citation-subfield">{item.section_title || item.source_label}</span>
-          <span className="muted">{item.year || "年份未填"}</span>
+          <span className="muted">{item.year || "内置文献段落"}</span>
         </div>
         <strong>{item.title}</strong>
-        <div className="muted">{item.authors.join("、") || "作者未填"}</div>
+        <div className="muted">{item.authors.join("、") || "作者信息暂未展示"}</div>
         {item.collection_slug ? <div className="muted">板块：{item.collection_slug}</div> : null}
         <p className="citation-abstract">{item.quote_or_summary}</p>
       </article>
@@ -187,12 +181,18 @@ export function ResearchQAPage() {
       <article key={`${item.title}-${item.doi ?? item.external_url ?? item.year ?? item.source}`} className="evidence-entry">
         <div className="citation-topline">
           <span className="citation-subfield">{item.source_label}</span>
-          <span className="muted">{item.year || "年份未填"}</span>
+          <span className="muted">{item.published_date || item.year || "日期未返回"}</span>
         </div>
         <strong>{item.title}</strong>
         <div className="muted">{item.authors.join("、") || "作者未返回"}</div>
         {item.source_name ? <div className="muted">来源：{item.source_name}</div> : null}
+        {typeof item.times_cited === "number" ? <div className="muted">被引次数：{item.times_cited}</div> : null}
         {item.doi ? <div className="muted">DOI：{item.doi}</div> : null}
+        {item.external_url ? (
+          <a className="muted" href={item.external_url} target="_blank" rel="noreferrer">
+            {item.external_url}
+          </a>
+        ) : null}
         <p className="citation-abstract">{item.quote_or_summary}</p>
       </article>
     ));
@@ -202,7 +202,7 @@ export function ResearchQAPage() {
     <>
       <PageHeader
         title="研究问答"
-        description="围绕当前研究者任务，优先基于系统内置文献库与个人上传文献生成结构化学术回答，并可按需叠加 Web of Science 与网页搜索补充证据。"
+        description="围绕当前研究者任务，优先基于系统内置文献库的语义检索结果生成结构化学术回答，并可按需叠加 Web of Science 与网页搜索补充证据。"
         kicker="Research Assistant Workspace"
       />
 
@@ -337,15 +337,7 @@ export function ResearchQAPage() {
                   onClick={() => setIncludeBuiltinLibrary((value) => !value)}
                 >
                   <strong>系统内置文献库</strong>
-                  <span>开发者预先导入、按板块组织的本地文献资源。</span>
-                </button>
-                <button
-                  type="button"
-                  className={`source-option ${includeUserUploads ? "active" : ""}`}
-                  onClick={() => setIncludeUserUploads((value) => !value)}
-                >
-                  <strong>我的上传文献</strong>
-                  <span>仅检索当前账号自己上传并解析成功的文献，不进入公共库。</span>
+                  <span>默认主来源。先从内置文献库 chunk 中做语义检索，再将相关段落送入大模型。</span>
                 </button>
                 <button
                   type="button"
@@ -353,7 +345,7 @@ export function ResearchQAPage() {
                   onClick={() => setIncludeWebSearch((value) => !value)}
                 >
                   <strong>网页搜索</strong>
-                  <span>当前版本仍为结构化占位，用于后续扩展方向演示。</span>
+                  <span>调用 Tavily 获取公开网页结果，作为内置文献库之外的补充证据。</span>
                 </button>
                 <button
                   type="button"
@@ -361,7 +353,7 @@ export function ResearchQAPage() {
                   onClick={() => setIncludeWosSearch((value) => !value)}
                 >
                   <strong>Web of Science</strong>
-                  <span>作为外部学术文献补充来源，不替代本地知识库。</span>
+                  <span>调用 WoS Starter API 检索高质量学术论文，作为内置文献库之外的学术补充。</span>
                 </button>
               </div>
             </div>
@@ -389,16 +381,15 @@ export function ResearchQAPage() {
 
           <div className="answer-card">
             <div className="answer-eyebrow">{agentResponse?.answer_title || answerModeMeta.heading}</div>
-            <h3>{agentResponse?.direct_answer || "系统将结合当前研究者上下文与所选来源范围，生成结构化学术回答。"}</h3>
+            <h3>{agentResponse?.direct_answer || "系统将先检索系统内置文献库中的相关段落，再结合所选外部来源生成结构化学术回答。"}</h3>
 
             <div className="list-card context-card">
               <strong>当前来源策略</strong>
               <div className="muted">
                 {[
                   includeBuiltinLibrary ? "系统内置文献库" : null,
-                  includeUserUploads ? "我的上传文献" : null,
                   includeWosSearch ? "Web of Science" : null,
-                  includeWebSearch ? "网页搜索（占位）" : null,
+                  includeWebSearch ? "网页搜索" : null,
                 ]
                   .filter(Boolean)
                   .join(" + ") || "未选择来源"}
@@ -451,7 +442,7 @@ export function ResearchQAPage() {
                 <div className="answer-section">
                   <strong>证据源状态</strong>
                   <div className="tag-list">
-                    <span className="tag">本地来源：{agentResponse.source_status.local}</span>
+                    <span className="tag">系统内置文献库：{agentResponse.source_status.local}</span>
                     <span className="tag">Web of Science：{agentResponse.source_status.wos}</span>
                     <span className="tag">网页搜索：{agentResponse.source_status.web}</span>
                   </div>
@@ -468,9 +459,9 @@ export function ResearchQAPage() {
               <div className="answer-section">
                 <strong>回答结构</strong>
                 <ul>
-                  <li>直接回答：优先基于系统内置文献库与个人上传文献给出研究任务型结论。</li>
+                  <li>直接回答：优先基于系统内置文献库 chunk 检索结果给出研究任务型结论。</li>
                   <li>脉络整理：按模式输出概念脉络、文献脉络、机制链条或研究设计建议。</li>
-                  <li>证据分源：内置文献库、个人上传、WoS 与网页搜索会分别展示。</li>
+                  <li>引用依据：右侧展示实际命中的内置文献段落及可选外部来源。</li>
                 </ul>
               </div>
             )}
@@ -486,7 +477,7 @@ export function ResearchQAPage() {
           <div className="list-card citation-note">
             <strong>来源说明</strong>
             <div className="muted">
-              系统内置文献库由开发者预先导入并按板块组织；“我的上传文献”仅属于当前用户本人；WoS 与网页搜索属于外部补充来源。
+              系统会优先从内置文献库的 chunk 中做语义检索；如果你额外启用 WoS 或网页搜索，它们只作为补充来源分开展示。
             </div>
           </div>
 
@@ -496,14 +487,6 @@ export function ResearchQAPage() {
               {renderLocalEvidence(
                 builtinEvidence,
                 includeBuiltinLibrary ? "当前未返回系统内置文献库证据。" : "当前未启用系统内置文献库。",
-              )}
-            </div>
-
-            <div className="list-card citation-card evidence-source-card">
-              <strong>我的上传文献证据</strong>
-              {renderLocalEvidence(
-                uploadEvidence,
-                includeUserUploads ? "当前未返回个人上传文献证据。" : "当前未启用我的上传文献。",
               )}
             </div>
 

@@ -1,9 +1,7 @@
-version: '3.8'
-
-services:
+﻿services:
   # PostgreSQL Database
   db:
-    image: postgres:15-alpine
+    image: pgvector/pgvector:pg16
     environment:
       POSTGRES_USER: paperclaw_user
       POSTGRES_PASSWORD: password
@@ -44,6 +42,22 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://paperclaw_user:password@db:5432/paperclaw_db
       REDIS_URL: redis://redis:6379/0
+      STORAGE_ROOT: /workspace/paper_uploads
+      BUILTIN_LIBRARY_ROOT: /workspace/data/builtin_library
+      EMBEDDING_PROVIDER: minimax
+      MINIMAX_EMBEDDING_URL: https://api.minimaxi.com/v1/embeddings
+      MINIMAX_EMBEDDING_MODEL: embo-01
+      ENABLE_WOS_SEARCH: ${ENABLE_WOS_SEARCH:-true}
+      WOS_API_KEY: ${WOS_API_KEY:-}
+      WOS_API_URL: https://api.clarivate.com/apis/wos-starter/v1
+      WOS_TIMEOUT_SECONDS: "15"
+      ENABLE_WEB_SEARCH: ${ENABLE_WEB_SEARCH:-true}
+      TAVILY_API_KEY: ${TAVILY_API_KEY:-}
+      TAVILY_SEARCH_URL: https://api.tavily.com/search
+      ENABLE_ZEP_MEMORY: "false"
+      ZEP_API_BASE_URL: https://api.getzep.com/api/v2
+      ZEP_TIMEOUT_SECONDS: "30"
+      ZEP_LASTN_MESSAGES: "6"
     depends_on:
       db:
         condition: service_healthy
@@ -51,6 +65,8 @@ services:
         condition: service_healthy
     volumes:
       - .:/app
+      - ../paper_uploads:/workspace/paper_uploads
+      - ../data:/workspace/data
     networks:
       - paperclaw
 

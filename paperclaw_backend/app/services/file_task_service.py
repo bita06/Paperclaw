@@ -2,16 +2,18 @@
 Service layer for files and processing tasks.
 """
 import re
+from collections.abc import Iterable
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import fitz
 from fastapi import UploadFile
-from pypdf import PdfReader
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.config import settings
 from app.exceptions import raise_bad_request, raise_forbidden, raise_not_found
 from app.models import (
     FileStatus,
@@ -38,7 +40,8 @@ from app.services.paper_service import paper_service
 
 
 class FileTaskService:
-    upload_root = Path(__file__).resolve().parents[3] / "paper_uploads" / "files"
+    upload_root = Path(settings.STORAGE_ROOT) / "files"
+    heading_number_pattern = re.compile(r"^(?:\d+(?:\.\d+){0,3}|[IVXLC]+)[\.)]?\s+")
     known_headings = {
         "abstract": "Abstract",
         "introduction": "Introduction",
@@ -69,29 +72,35 @@ class FileTaskService:
     ) -> FileUploadAcceptedResponse:
         self._validate_upload(file)
         saved_path = await self._save_upload(file)
-        size_bytes = saved_path.stat().st_size
+        try:
+            size_bytes = saved_path.stat().st_size
 
-        stored_file = StoredFile(
-            original_name=file.filename or saved_path.name,
-            stored_name=saved_path.name,
-            file_path=str(saved_path),
-            content_type=file.content_type,
-            size_bytes=size_bytes,
-            status=FileStatus.UPLOADED,
-            uploaded_by=current_user.id,
-            researcher_id=researcher_id,
-        )
-        task = ProcessingTask(
-            task_type="file_parse",
-            status=TaskStatus.QUEUED,
-            created_by=current_user.id,
-            result={},
-        )
-        stored_file.tasks.append(task)
-        db.add(stored_file)
-        await db.commit()
-        await db.refresh(stored_file)
-        await db.refresh(task)
+            stored_file = StoredFile(
+                original_name=file.filename or saved_path.name,
+                stored_name=saved_path.name,
+                file_path=str(saved_path),
+                content_type=file.content_type,
+                size_bytes=size_bytes,
+                status=FileStatus.UPLOADED,
+                uploaded_by=current_user.id,
+                researcher_id=researcher_id,
+            )
+            task = ProcessingTask(
+                task_type="file_parse",
+                status=TaskStatus.QUEUED,
+                created_by=current_user.id,
+                result={},
+            )
+            stored_file.tasks.append(task)
+            db.add(stored_file)
+            await db.commit()
+            await db.refresh(stored_file)
+            await db.refresh(task)
+        except Exception:
+            await db.rollback()
+            if saved_path.exists():
+                saved_path.unlink(missing_ok=True)
+            raise
 
         await self._parse_pdf_mvp(db, stored_file.id, task.id)
 
@@ -196,6 +205,8 @@ class FileTaskService:
                     concepts=[],
                     span_start=section.get("span_start"),
                     span_end=section.get("span_end"),
+                    page_start=section.get("page_start"),
+                    page_end=section.get("page_end"),
                 )
                 db.add(section_record)
                 section_records.append(section_record)
@@ -234,21 +245,19 @@ class FileTaskService:
             await db.commit()
 
     async def _extract_pdf_insights(self, file_path: Path, original_name: str) -> dict[str, Any]:
-        reader = PdfReader(str(file_path))
-        page_texts: list[str] = []
-        for page in reader.pages:
-            extracted = page.extract_text() or ""
-            normalized = self._normalize_text(extracted)
-            if normalized:
-                page_texts.append(normalized)
-
-        full_text = "\n\n".join(page_texts).strip()
+        document = fitz.open(str(file_path))
+        page_chunks, full_text = self._extract_document_chunks(document)
         if not full_text:
             raise ValueError("No extractable text found in PDF")
 
-        first_page_text = page_texts[0] if page_texts else ""
-        metadata = self._extract_metadata(reader, first_page_text, full_text, original_name)
-        sections = self._with_section_spans(full_text, self._split_sections(full_text))
+        first_page_text = "\n".join(chunk["text"] for chunk in page_chunks if chunk["page"] == 1)[:4000]
+        metadata = self._extract_metadata(document.metadata or {}, first_page_text, full_text, original_name)
+        sections = self._build_structured_sections(page_chunks, full_text)
+        if not sections:
+            sections = self._attach_page_ranges(
+                self._with_section_spans(full_text, self._split_sections(full_text)),
+                page_chunks,
+            )
         if metadata.get("abstract") is None:
             abstract_section = next((section for section in sections if section["title"].lower() == "abstract"), None)
             if abstract_section:
@@ -265,11 +274,16 @@ class FileTaskService:
             metadata = self._merge_metadata(metadata, enhancement.get("metadata") or {})
             llm_section_titles = enhancement.get("section_titles") or []
             if llm_section_titles:
-                sections = self._with_section_spans(full_text, self._split_sections(full_text, preferred_titles=llm_section_titles))
+                sections = self._attach_page_ranges(
+                    self._with_section_spans(full_text, self._split_sections(full_text, preferred_titles=llm_section_titles)),
+                    page_chunks,
+                )
                 if metadata.get("abstract") is None:
                     abstract_section = next((section for section in sections if section["title"].lower() == "abstract"), None)
                     if abstract_section:
                         metadata["abstract"] = abstract_section["text"][:3000] or None
+
+        document.close()
 
         return {
             "full_text": full_text,
@@ -293,12 +307,11 @@ class FileTaskService:
 
     def _extract_metadata(
         self,
-        reader: PdfReader,
+        reader_metadata: dict[str, Any],
         first_page_text: str,
         full_text: str,
         original_name: str,
     ) -> dict[str, Any]:
-        reader_metadata = reader.metadata or {}
         title = self._extract_title(self._safe_metadata_attr(reader_metadata, "title"), first_page_text, original_name)
         authors = self._extract_authors(self._safe_metadata_attr(reader_metadata, "author"), first_page_text, title)
         year = self._extract_year(self._safe_metadata_attr(reader_metadata, "creation_date"), first_page_text, full_text)
@@ -313,6 +326,19 @@ class FileTaskService:
 
     def _safe_metadata_attr(self, metadata: Any, attr_name: str) -> Any:
         try:
+            if isinstance(metadata, dict):
+                direct = metadata.get(attr_name)
+                if direct is not None:
+                    return direct
+                alias_map = {
+                    "title": {"title"},
+                    "author": {"author"},
+                    "creation_date": {"creationDate", "creation_date"},
+                }
+                for alias in alias_map.get(attr_name, set()):
+                    if alias in metadata:
+                        return metadata[alias]
+                return None
             return getattr(metadata, attr_name, None)
         except Exception:
             return None
@@ -488,6 +514,197 @@ class FileTaskService:
             return stripped.title()
 
         return None
+
+    def _extract_document_chunks(self, document: fitz.Document) -> tuple[list[dict[str, Any]], str]:
+        page_chunks: list[dict[str, Any]] = []
+        full_text_parts: list[str] = []
+        offset = 0
+        for page_index in range(document.page_count):
+            page = document.load_page(page_index)
+            page_dict = page.get_text("dict")
+            for block in page_dict.get("blocks", []):
+                if block.get("type") != 0:
+                    continue
+                lines = block.get("lines") or []
+                line_texts: list[str] = []
+                font_sizes: list[float] = []
+                flags: list[int] = []
+                for line in lines:
+                    spans = line.get("spans") or []
+                    span_text = "".join((span.get("text") or "") for span in spans)
+                    normalized_line = self._normalize_text(span_text)
+                    if not normalized_line:
+                        continue
+                    line_texts.append(normalized_line)
+                    font_sizes.extend(float(span.get("size") or 0.0) for span in spans if span.get("size"))
+                    flags.extend(int(span.get("flags") or 0) for span in spans)
+                block_text = "\n".join(line_texts).strip()
+                if not block_text:
+                    continue
+                avg_font_size = sum(font_sizes) / len(font_sizes) if font_sizes else 0.0
+                is_bold = any(flag & 16 for flag in flags)
+                block_start = offset
+                block_end = block_start + len(block_text)
+                page_chunks.append(
+                    {
+                        "page": page_index + 1,
+                        "text": block_text,
+                        "avg_font_size": avg_font_size,
+                        "is_bold": is_bold,
+                        "span_start": block_start,
+                        "span_end": block_end,
+                    }
+                )
+                full_text_parts.append(block_text)
+                offset = block_end + 2
+        return page_chunks, "\n\n".join(full_text_parts).strip()
+
+    def _build_structured_sections(self, page_chunks: Iterable[dict[str, Any]], full_text: str) -> list[dict[str, Any]]:
+        chunk_list = list(page_chunks)
+        if not chunk_list:
+            return []
+
+        font_sizes = [chunk["avg_font_size"] for chunk in chunk_list if chunk.get("avg_font_size")]
+        median_font = sorted(font_sizes)[len(font_sizes) // 2] if font_sizes else 11.0
+
+        sections: list[dict[str, Any]] = []
+        current_title = "Front Matter"
+        current_texts: list[str] = []
+        current_page_start = chunk_list[0]["page"]
+        current_page_end = chunk_list[0]["page"]
+
+        for chunk in chunk_list:
+            text = chunk["text"]
+            if self._looks_like_heading_block(text, chunk, median_font):
+                if current_texts:
+                    sections.append(
+                        self._finalize_section(full_text, current_title, current_texts, current_page_start, current_page_end)
+                    )
+                current_title = self._clean_section_title(text)
+                current_texts = []
+                current_page_start = chunk["page"]
+                current_page_end = chunk["page"]
+                continue
+
+            current_texts.append(text)
+            current_page_end = chunk["page"]
+
+        if current_texts:
+            sections.append(self._finalize_section(full_text, current_title, current_texts, current_page_start, current_page_end))
+
+        return [section for section in sections if section["text"]]
+
+    def _looks_like_heading_block(self, text: str, chunk: dict[str, Any], median_font: float) -> bool:
+        normalized = self._normalize_text(text)
+        lowered_key = self._normalize_heading_key(normalized)
+        if lowered_key in self.known_headings:
+            return True
+        if self.heading_number_pattern.match(normalized) and len(normalized) <= 120:
+            return True
+        if "\n" in normalized:
+            return False
+        word_count = len(normalized.split())
+        bigger_font = float(chunk.get("avg_font_size") or 0.0) >= median_font * 1.12
+        if bigger_font and word_count <= 14 and len(normalized) <= 120:
+            return True
+        if chunk.get("is_bold") and word_count <= 10 and len(normalized) <= 100:
+            return True
+        if normalized.isupper() and word_count <= 10 and len(normalized) <= 100:
+            return True
+        return False
+
+    def _clean_section_title(self, value: str) -> str:
+        normalized = self._normalize_text(value).strip(":")
+        normalized = re.sub(r"\s+", " ", normalized)
+        return normalized[:100] or "Untitled Section"
+
+    def _finalize_section(
+        self,
+        full_text: str,
+        title: str,
+        texts: list[str],
+        page_start: int,
+        page_end: int,
+    ) -> dict[str, Any]:
+        body = "\n\n".join(texts).strip()
+        span_start = full_text.find(body) if body else None
+        span_end = span_start + len(body) if span_start is not None and span_start >= 0 else None
+        return {
+            "title": title[:100],
+            "text": body,
+            "span_start": span_start if span_start is not None and span_start >= 0 else None,
+            "span_end": span_end,
+            "page_start": page_start,
+            "page_end": page_end,
+        }
+
+    def _attach_page_ranges(self, sections: list[dict[str, Any]], page_chunks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        if not sections or not page_chunks:
+            return sections
+
+        page_ranges: dict[int, tuple[int, int]] = {}
+        page_texts: dict[int, str] = {}
+        for chunk in page_chunks:
+            page = chunk["page"]
+            start = chunk.get("span_start")
+            end = chunk.get("span_end")
+            if start is None or end is None:
+                page_texts[page] = f"{page_texts.get(page, '')}\n{chunk.get('text', '')}".strip()
+                continue
+            current = page_ranges.get(page)
+            if current is None:
+                page_ranges[page] = (start, end)
+            else:
+                page_ranges[page] = (min(current[0], start), max(current[1], end))
+            page_texts[page] = f"{page_texts.get(page, '')}\n{chunk.get('text', '')}".strip()
+
+        for section in sections:
+            span_start = section.get("span_start")
+            span_end = section.get("span_end")
+            pages: list[int] = []
+            if span_start is not None and span_end is not None:
+                pages = [
+                    page
+                    for page, (page_start, page_end) in page_ranges.items()
+                    if not (span_end < page_start or span_start > page_end)
+                ]
+            if not pages:
+                pages = self._infer_pages_from_text(section.get("text") or "", page_texts)
+            section["page_start"] = min(pages) if pages else None
+            section["page_end"] = max(pages) if pages else None
+        return sections
+
+    def _infer_pages_from_text(self, section_text: str, page_texts: dict[int, str]) -> list[int]:
+        normalized_section = self._normalize_text(section_text)
+        if not normalized_section:
+            return []
+
+        start_snippet = normalized_section[:160].strip()
+        end_snippet = normalized_section[-160:].strip() if len(normalized_section) > 160 else start_snippet
+        matched_pages: list[int] = []
+
+        for page, text in page_texts.items():
+            normalized_page = self._normalize_text(text)
+            if not normalized_page:
+                continue
+            if start_snippet and start_snippet in normalized_page:
+                matched_pages.append(page)
+                continue
+            if end_snippet and end_snippet in normalized_page:
+                matched_pages.append(page)
+                continue
+
+        if matched_pages:
+            return matched_pages
+
+        first_words = " ".join(normalized_section.split()[:12]).strip()
+        if not first_words:
+            return []
+        for page, text in page_texts.items():
+            normalized_page = self._normalize_text(text)
+            if first_words and first_words in normalized_page:
+                matched_pages.append(page)
+        return matched_pages
 
     def _normalize_heading_key(self, value: str | None) -> str:
         if not value:

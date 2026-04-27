@@ -4,10 +4,61 @@ SQLAlchemy Models - Paper and Library
 from datetime import datetime
 import enum
 
+from pgvector.utils import from_db, to_db
 from sqlalchemy import ARRAY, Boolean, Column, DateTime, Enum as SQLEnum, Float, ForeignKey, Index, Integer, String, Text
+from sqlalchemy.dialects.postgresql import TSVECTOR
 from sqlalchemy.orm import relationship
+from sqlalchemy.types import UserDefinedType
 
+from app.config import settings
 from app.models.base import BaseModel
+
+
+class AsyncpgVector(UserDefinedType):
+    cache_ok = True
+    _string = String()
+
+    def __init__(self, dim=None):
+        super(UserDefinedType, self).__init__()
+        self.dim = dim
+
+    def get_col_spec(self, **kw):
+        if self.dim is None:
+            return "VECTOR"
+        return "VECTOR(%d)" % self.dim
+
+    def bind_processor(self, dialect):
+        if getattr(dialect, "driver", None) == "asyncpg":
+            def process(value):
+                return value
+            return process
+
+        def process(value):
+            return to_db(value, self.dim)
+        return process
+
+    def literal_processor(self, dialect):
+        string_literal_processor = self._string._cached_literal_processor(dialect)
+
+        def process(value):
+            return string_literal_processor(to_db(value, self.dim))
+
+        return process
+
+    def result_processor(self, dialect, coltype):
+        def process(value):
+            return from_db(value)
+        return process
+
+    class comparator_factory(UserDefinedType.Comparator):
+        def l2_distance(self, other):
+            return self.op('<->', return_type=Float)(other)
+
+        def max_inner_product(self, other):
+            return self.op('<#>', return_type=Float)(other)
+
+        def cosine_distance(self, other):
+            return self.op('<=>', return_type=Float)(other)
 
 
 class PaperSource(str, enum.Enum):
@@ -87,6 +138,8 @@ class PaperSection(BaseModel):
     concepts = Column(ARRAY(String), default=[])
     span_start = Column(Integer)
     span_end = Column(Integer)
+    page_start = Column(Integer)
+    page_end = Column(Integer)
 
     paper = relationship("Paper", back_populates="section_contents")
     chunks = relationship("PaperChunk", back_populates="section", cascade="all, delete-orphan")
@@ -96,7 +149,7 @@ class PaperSection(BaseModel):
 
 
 class PaperChunk(BaseModel):
-    """Smaller retrieval unit built from sections for future RAG retrieval."""
+    """Smaller retrieval unit built from sections for RAG retrieval."""
 
     __tablename__ = "paper_chunks"
 
@@ -105,9 +158,12 @@ class PaperChunk(BaseModel):
     chunk_index = Column(Integer, nullable=False)
     section_title = Column(String(100), nullable=False)
     chunk_text = Column(Text, nullable=False)
-    chunk_embedding = Column(ARRAY(Float))
+    chunk_embedding = Column(AsyncpgVector(settings.EMBEDDING_DIMENSION))
+    chunk_tsv = Column(TSVECTOR)
     span_start = Column(Integer)
     span_end = Column(Integer)
+    page_start = Column(Integer)
+    page_end = Column(Integer)
 
     paper = relationship("Paper", back_populates="chunks")
     section = relationship("PaperSection", back_populates="chunks")
@@ -202,4 +258,3 @@ class ReadingHistory(BaseModel):
 
     def __repr__(self):
         return f"<ReadingHistory {self.researcher_id} -> {self.paper_id}>"
-

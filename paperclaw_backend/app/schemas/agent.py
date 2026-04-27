@@ -29,6 +29,7 @@ class AgentQueryRequest(BaseModel):
     include_wos: bool = False
     collection_slug: Optional[str] = Field(default=None, max_length=120)
     top_k: int = Field(default=5, ge=1, le=10)
+    session_id: Optional[str] = Field(default=None, max_length=120)
 
 
 class AgentLocalEvidenceItem(BaseModel):
@@ -41,16 +42,20 @@ class AgentLocalEvidenceItem(BaseModel):
     source: AgentEvidenceSourceEnum
     source_label: str
     collection_slug: Optional[str] = None
+    page_start: Optional[int] = None
+    page_end: Optional[int] = None
 
 
 class AgentExternalEvidenceItem(BaseModel):
     title: str
     authors: List[str] = Field(default_factory=list)
     year: Optional[int] = None
+    published_date: Optional[str] = None
     source: AgentEvidenceSourceEnum
     source_label: str
     source_name: Optional[str] = None
     doi: Optional[str] = None
+    times_cited: Optional[int] = None
     external_url: Optional[str] = None
     quote_or_summary: str
 
@@ -65,6 +70,38 @@ class AgentSourceStatus(BaseModel):
 class BuiltinCollectionOption(BaseModel):
     collection_slug: str
     label: str
+
+
+class SemanticSearchRequest(BaseModel):
+    query: str = Field(min_length=2, max_length=4000)
+    researcher_id: Optional[str] = None
+    include_builtin_library: bool = True
+    include_user_uploads: bool = False
+    collection_slug: Optional[str] = Field(default=None, max_length=120)
+    top_k: int = Field(default=8, ge=1, le=20)
+
+
+class SemanticSearchChunkItem(BaseModel):
+    chunk_id: str
+    paper_id: str
+    title: str
+    authors: List[str] = Field(default_factory=list)
+    year: Optional[int] = None
+    section_title: str
+    chunk_text: str
+    source: AgentEvidenceSourceEnum
+    source_label: str
+    collection_slug: Optional[str] = None
+    score: float
+    vector_score: float = 0.0
+    keyword_score: float = 0.0
+    page_start: Optional[int] = None
+    page_end: Optional[int] = None
+
+
+class SemanticSearchResponse(BaseModel):
+    query: str
+    items: List[SemanticSearchChunkItem] = Field(default_factory=list)
 
 
 class AgentQueryResponse(BaseModel):

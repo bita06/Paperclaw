@@ -1,9 +1,13 @@
 ﻿"""
 Application Configuration
 """
+from pathlib import Path
 from typing import List
 from pydantic_settings import BaseSettings
 from pydantic import Field, field_validator
+
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = BACKEND_ROOT.parent
 
 
 class Settings(BaseSettings):
@@ -21,6 +25,10 @@ class Settings(BaseSettings):
     HOST: str = Field(default="0.0.0.0")
     PORT: int = Field(default=8000)
 
+    # === Storage ===
+    STORAGE_ROOT: str = Field(default=str(REPO_ROOT / 'paper_uploads'))
+    BUILTIN_LIBRARY_ROOT: str = Field(default=str(REPO_ROOT / 'data' / 'builtin_library'))
+
     # === Database ===
     DATABASE_URL: str = Field(
         default="postgresql+asyncpg://paperclaw_user:password@localhost:5432/paperclaw_db"
@@ -34,6 +42,7 @@ class Settings(BaseSettings):
     PINECONE_INDEX_NAME: str = Field(default="paperclaw-index")
     PINECONE_ENVIRONMENT: str = Field(default="us-west1-gcp")
     EMBEDDING_DIMENSION: int = Field(default=1536)
+    EMBEDDING_PROVIDER: str = Field(default="minimax")
 
     # === LLM (OpenAI legacy) ===
     OPENAI_API_KEY: str = Field(default="")
@@ -42,20 +51,34 @@ class Settings(BaseSettings):
     MAX_TOKENS: int = Field(default=2048)
     TEMPERATURE: float = Field(default=0.7)
 
-    # === LLM (MiniMax parser) ===
+    # === LLM (MiniMax parser / embeddings) ===
     MINIMAX_API_KEY: str = Field(default="")
     MINIMAX_BASE_URL: str = Field(default="https://api.minimaxi.com/v1/text/chatcompletion_v2")
     MINIMAX_MODEL: str = Field(default="MiniMax-M2.5")
+    MINIMAX_EMBEDDING_URL: str = Field(default="https://api.minimaxi.com/v1/embeddings")
+    MINIMAX_EMBEDDING_MODEL: str = Field(default="embo-01")
     MINIMAX_TIMEOUT_SECONDS: int = Field(default=60)
 
     # === Web of Science ===
     WOS_API_KEY: str = Field(default="")
     WOS_BASE_URL: str = Field(default="https://api.clarivate.com/apis/wos-starter/v1")
-    WOS_TIMEOUT_SECONDS: int = Field(default=30)
+    WOS_API_URL: str = Field(default="https://api.clarivate.com/apis/wos-starter/v1")
+    WOS_TIMEOUT_SECONDS: int = Field(default=15)
+
+    # === Web Search (Tavily) ===
+    TAVILY_API_KEY: str = Field(default="")
+    TAVILY_SEARCH_URL: str = Field(default="https://api.tavily.com/search")
 
     # === Redis Cache ===
     REDIS_URL: str = Field(default="redis://localhost:6379/0")
     CACHE_TTL: int = Field(default=3600)
+
+    # === Zep Memory ===
+    ENABLE_ZEP_MEMORY: bool = Field(default=False)
+    ZEP_API_KEY: str = Field(default="")
+    ZEP_API_BASE_URL: str = Field(default="https://api.getzep.com/api/v2")
+    ZEP_TIMEOUT_SECONDS: int = Field(default=30)
+    ZEP_LASTN_MESSAGES: int = Field(default=6)
 
     # === Authentication ===
     SECRET_KEY: str = Field(default="your-secret-key-change-in-production")
@@ -75,6 +98,8 @@ class Settings(BaseSettings):
     ENABLE_VECTOR_SEARCH: bool = Field(default=True)
     ENABLE_LLM_FEATURES: bool = Field(default=True)
     ENABLE_PDF_PROCESSING: bool = Field(default=True)
+    ENABLE_WEB_SEARCH: bool = Field(default=True)
+    ENABLE_WOS_SEARCH: bool = Field(default=True)
 
     @field_validator("DEBUG", mode="before")
     @classmethod
@@ -90,11 +115,9 @@ class Settings(BaseSettings):
         return value
 
     class Config:
-        env_file = ".env"
+        env_file = str(BACKEND_ROOT / ".env")
         env_file_encoding = "utf-8"
         case_sensitive = True
 
 
 settings = Settings()
-
-

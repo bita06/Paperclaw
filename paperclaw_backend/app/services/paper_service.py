@@ -11,6 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.config import settings
 from app.exceptions import raise_conflict, raise_not_found
 from app.models import Paper
 from app.schemas import (
@@ -29,7 +30,7 @@ from app.services.advisor_library_service import advisor_library_service
 class PaperService:
     """Business logic for paper CRUD operations."""
 
-    upload_root = Path(__file__).resolve().parents[3] / "paper_uploads" / "papers"
+    upload_root = Path(settings.STORAGE_ROOT) / "papers"
 
     async def create_paper(
         self,
@@ -62,21 +63,27 @@ class PaperService:
         added_by: str = "upload_api",
     ) -> PaperUploadResponse:
         saved_path = await self._save_upload(file)
-        paper = Paper(
-            title=title or self._infer_title(file.filename or saved_path.name),
-            authors=authors or [],
-            year=year,
-            venue=venue,
-            doi=doi,
-            abstract=abstract,
-            keywords=keywords or [],
-            source="uploaded",
-            full_text=None,
-            file_path=str(saved_path),
-        )
-        db.add(paper)
-        await self._commit_or_raise_conflict(db, "Paper with the same DOI already exists")
-        await db.refresh(paper)
+        try:
+            paper = Paper(
+                title=title or self._infer_title(file.filename or saved_path.name),
+                authors=authors or [],
+                year=year,
+                venue=venue,
+                doi=doi,
+                abstract=abstract,
+                keywords=keywords or [],
+                source="uploaded",
+                full_text=None,
+                file_path=str(saved_path),
+            )
+            db.add(paper)
+            await self._commit_or_raise_conflict(db, "Paper with the same DOI already exists")
+            await db.refresh(paper)
+        except Exception:
+            await db.rollback()
+            if saved_path.exists():
+                saved_path.unlink(missing_ok=True)
+            raise
 
         advisor_links: list[AdvisorLibraryPaperResponse] = []
         if advisor_ids:
