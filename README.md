@@ -43,8 +43,10 @@ PaperClaw 不是一个通用聊天机器人，而是面向公共管理研究场�
 ## 🎬 产品演示
 
 <div align="center">
-  <p><a href="https://raw.githubusercontent.com/bita06/Paperclaw/main/docs/assets/research-question-demo.mp4"><strong>▶ 点击播放完整的研究问答 Demo</strong></a></p>
-  <sub>真实 MP4 视频，约 61 MB；部分浏览器可能直接下载后播放。</sub>
+  <a href="https://raw.githubusercontent.com/bita06/Paperclaw/main/docs/assets/research-question-demo.mp4">
+    <img src="docs/assets/research-demo-preview.gif" alt="PaperClaw 研究问答流程演示" width="900">
+  </a>
+  <p><strong>进入页面自动播放前 15 秒 · 点击动图查看完整 MP4</strong></p>
 </div>
 
 也可以从仓库中[查看或下载视频文件](docs/assets/research-question-demo.mp4)。
