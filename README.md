@@ -22,9 +22,11 @@
   <a href="#api">API</a>
 </p>
 
-<img src="docs/assets/researcher-workspace.png" alt="PaperClaw 研究者工作台设计图" width="960">
+<a href="https://raw.githubusercontent.com/bita06/Paperclaw/main/docs/assets/research-question-demo.mp4">
+  <img src="docs/assets/research-demo-preview.gif" alt="PaperClaw 研究问答流程演示" width="960">
+</a>
 
-<sub>研究者上下文、Agent 对话与授权文献证据在同一工作台内协同。</sub>
+<sub>自动播放研究问答流程前 15 秒 · 点击动图查看完整 MP4</sub>
 
 </div>
 
@@ -43,10 +45,7 @@ PaperClaw 不是一个通用聊天机器人，而是面向公共管理研究场�
 ## 🎬 产品演示
 
 <div align="center">
-  <a href="https://raw.githubusercontent.com/bita06/Paperclaw/main/docs/assets/research-question-demo.mp4">
-    <img src="docs/assets/research-demo-preview.gif" alt="PaperClaw 研究问答流程演示" width="900">
-  </a>
-  <p><strong>进入页面自动播放前 15 秒 · 点击动图查看完整 MP4</strong></p>
+  <p><a href="https://raw.githubusercontent.com/bita06/Paperclaw/main/docs/assets/research-question-demo.mp4"><strong>▶ 播放完整的研究问答 Demo</strong></a></p>
 </div>
 
 也可以从仓库中[查看或下载视频文件](docs/assets/research-question-demo.mp4)。
