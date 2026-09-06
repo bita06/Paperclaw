@@ -15,7 +15,6 @@
 </p>
 
 <p>
-  <a href="#demo">产品演示</a> ·
   <a href="#features">核心能力</a> ·
   <a href="#architecture">系统架构</a> ·
   <a href="#quick-start">快速开始</a> ·
@@ -37,21 +36,6 @@ PaperClaw 不是一个通用聊天机器人，而是面向公共管理研究场�
 ```text
 研究者画像 → 授权知识库 → 检索与重排 → LLM 推理 → 结构化回答 → 研究推进
 ```
-
-<a id="demo"></a>
-
-## 🎬 产品演示
-
-点击下方图片查看完整的研究问答流程演示：
-
-<div align="center">
-  <a href="docs/assets/research-question-demo.mp4">
-    <img src="docs/assets/researcher-workspace.png" alt="点击查看 PaperClaw 研究问答 Demo" width="820">
-  </a>
-  <p><strong>▶ 点击播放研究问答 Demo</strong>（MP4，约 61 MB）</p>
-</div>
-
-> GitHub 会打开视频文件页面；如浏览器未直接播放，可点击 **View raw** 下载或播放。
 
 <a id="features"></a>
 
