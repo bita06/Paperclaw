@@ -1,192 +1,253 @@
+<div align="center">
+
 # PaperClaw
 
-PaperClaw 是一个面向公共管理研究的本地文献智能问答工具。它将已导入的学术 PDF 切分为可检索的文献片段，结合网页搜索和大模型结构化生成能力，帮助研究者围绕概念定位、文献综述、机制分析和研究设计快速获得有依据的学术回答。
+### 面向公共管理研究者的研究任务型学术智能体
 
-## 已实现功能
+将研究者画像、导师知识库、语义检索与大模型推理连接起来，帮助研究者从“找到文献”走向“形成有证据的研究判断”。
 
-- 本地文献语义检索：基于 PostgreSQL + pgvector 检索内置文献库中的相关 chunk。
-- Tavily 网页搜索：在本地文献之外补充公开网页证据。
-- MiniMax 结构化回答：综合本地文献、网页证据等来源生成可读的研究回答。
-- 四种回答模式：概念定位、文献综述、机制分析、研究设计。
-- 证据分源展示：前端分别展示本地文献证据、网页搜索证据和外部学术证据状态。
-- 研究者、导师、导师文献库与上传文献管理。
+<p>
+  <img alt="Status: MVP" src="https://img.shields.io/badge/status-MVP-3B82F6?style=flat-square">
+  <img alt="Python 3.10" src="https://img.shields.io/badge/Python-3.10-3776AB?style=flat-square&logo=python&logoColor=white">
+  <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-0.104-009688?style=flat-square&logo=fastapi&logoColor=white">
+  <img alt="React 18" src="https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react&logoColor=111827">
+  <img alt="PostgreSQL + pgvector" src="https://img.shields.io/badge/PostgreSQL-pgvector-4169E1?style=flat-square&logo=postgresql&logoColor=white">
+</p>
 
-## 技术栈
+<p>
+  <a href="#demo">产品演示</a> ·
+  <a href="#features">核心能力</a> ·
+  <a href="#architecture">系统架构</a> ·
+  <a href="#quick-start">快速开始</a> ·
+  <a href="#api">API</a>
+</p>
 
-- 后端：FastAPI、SQLAlchemy、PostgreSQL、pgvector
-- 前端：React、Vite、TypeScript
-- 模型与外部服务：MiniMax、Tavily
-- 文献处理：PDF 解析、chunk 切分、向量化检索
+<img src="docs/assets/researcher-workspace.png" alt="PaperClaw 研究者工作台设计图" width="960">
 
-## 当前数据状态
+<sub>研究者上下文、Agent 对话与授权文献证据在同一工作台内协同。</sub>
 
-- 已导入法治与公共行政主题文献：281 篇
-- 已生成检索 chunk：12230 个
+</div>
 
-## 项目结构
+## PaperClaw 是什么？
+
+PaperClaw 不是一个通用聊天机器人，而是面向公共管理研究场景的学术 Agent。它先理解研究者是谁、处于什么研究阶段以及正在解决什么问题，再在已授权的导师知识库、本地文献库和外部证据中检索，最终生成可追溯的结构化回答。
+
+核心链路：
 
 ```text
-paperclaw/
-├─ paperclaw_backend/
-│  ├─ app/
-│  │  ├─ api/v1/          # FastAPI v1 接口
-│  │  ├─ models/          # SQLAlchemy 数据模型
-│  │  ├─ schemas/         # Pydantic 请求/响应结构
-│  │  ├─ services/        # 文献解析、语义检索、Agent、外部搜索等业务逻辑
-│  │  ├─ config.py        # 环境变量与配置
-│  │  ├─ database.py      # 数据库连接与初始化
-│  │  ├─ dependencies.py  # 鉴权与上下文依赖
-│  │  ├─ exceptions.py    # API 异常封装
-│  │  └─ main.py          # FastAPI 应用入口
-│  ├─ scripts/            # 初始化、内置文献导入、chunk 重建等脚本
-│  ├─ docker-compose.yml  # 本地 Postgres / Redis / API 服务
-│  ├─ Makefile            # 常用开发命令
-│  └─ requirements.txt
-├─ Paperclaw/frontend/    # React + Vite 前端
-├─ data/                  # 本地内置 PDF 文献库
-└─ paper_uploads/         # 用户上传与解析文件
+研究者画像 → 授权知识库 → 检索与重排 → LLM 推理 → 结构化回答 → 研究推进
 ```
 
-## 启动方式
+<a id="demo"></a>
 
-### 方式一：本地启动
+## 🎬 产品演示
 
-后端：
+点击下方图片查看完整的研究问答流程演示：
+
+<div align="center">
+  <a href="docs/assets/research-question-demo.mp4">
+    <img src="docs/assets/researcher-workspace.png" alt="点击查看 PaperClaw 研究问答 Demo" width="820">
+  </a>
+  <p><strong>▶ 点击播放研究问答 Demo</strong>（MP4，约 61 MB）</p>
+</div>
+
+> GitHub 会打开视频文件页面；如浏览器未直接播放，可点击 **View raw** 下载或播放。
+
+<a id="features"></a>
+
+## ✨ 核心能力
+
+| 能力 | PaperClaw 如何支持研究 |
+| --- | --- |
+| 研究者上下文 | 记录研究阶段、研究任务、研究问题和导师关系，为问答提供稳定上下文 |
+| 权限化导师知识库 | 按导师、子领域和指导关系控制文献访问范围，避免无关材料干扰 |
+| PDF 解析与入库 | 提取标题、作者、年份、摘要与章节，并生成可检索的文献片段 |
+| 本地语义检索 | 使用 PostgreSQL + pgvector 从授权文献中召回相关证据 |
+| 多源证据补充 | 可结合 Tavily 网页搜索与 Web of Science 学术检索补充外部证据 |
+| 四种研究模式 | 支持概念定位、文献综述、机制分析和研究设计 |
+| 结构化学术回答 | 由 MiniMax 综合本地与外部证据，输出分析、依据与后续研究建议 |
+
+### 文献处理流程
+
+```text
+PDF 上传
+   ↓
+元数据与正文解析
+   ↓
+Paper / Section / Chunk 持久化
+   ↓
+向量化与 pgvector 索引
+   ↓
+按研究者权限检索
+   ↓
+结构化回答与证据展示
+```
+
+<a id="architecture"></a>
+
+## 🏗️ 系统架构
+
+<div align="center">
+  <img src="docs/assets/system-architecture.png" alt="PaperClaw 系统架构图" width="650">
+</div>
+
+PaperClaw 采用前后端分离架构。React 工作台通过 FastAPI 访问研究者、导师、论文与 Agent 服务；PostgreSQL 负责业务数据，pgvector 负责语义向量检索。
+
+### 导师知识库的分域授权
+
+同一位导师可以维护多个研究子领域，并根据具体指导关系向不同研究者开放不同的文献范围。跨领域研究者也可以同时获得多个子领域的授权。
+
+<div align="center">
+  <img src="docs/assets/advisor-access-control.png" alt="PaperClaw 导师知识库分域授权示意图" width="900">
+</div>
+
+## 🧰 技术栈
+
+| 层级 | 技术 |
+| --- | --- |
+| Web 前端 | React 18、TypeScript、Vite |
+| API 后端 | FastAPI、Pydantic、SQLAlchemy |
+| 数据与检索 | PostgreSQL 16、pgvector、全文检索 |
+| 文献处理 | PyMuPDF、pypdf、章节切分、向量化 |
+| 模型与搜索 | MiniMax、Tavily、Web of Science Starter API |
+| 基础设施 | Docker Compose、Redis |
+
+<a id="quick-start"></a>
+
+## 🚀 快速开始
+
+### 环境要求
+
+- Python 3.10+
+- Node.js 18+
+- Docker Desktop（用于 PostgreSQL / pgvector 与 Redis）
+
+### 1. 克隆仓库
+
+```bash
+git clone https://github.com/bita06/Paperclaw.git
+cd Paperclaw
+```
+
+### 2. 启动数据库
 
 ```powershell
 cd paperclaw_backend
+docker compose up -d db redis
+```
+
+### 3. 配置并启动后端
+
+```powershell
+Copy-Item .env.example .env
+python -m venv venv
 .\venv\Scripts\activate
+pip install -r requirements.txt
+python scripts\init_db.py
 python -m uvicorn app.main:app --reload
 ```
 
-后端默认地址：
+编辑 `paperclaw_backend/.env`，至少设置：
 
-```text
-http://127.0.0.1:8000
+```dotenv
+DATABASE_URL=postgresql+asyncpg://paperclaw_user:password@127.0.0.1:5432/paperclaw_db
+SECRET_KEY=replace_with_a_secure_random_secret
+MINIMAX_API_KEY=your_minimax_api_key
 ```
 
-API 文档：
+需要网页搜索或 Web of Science 时，再配置 `TAVILY_API_KEY` 或 `WOS_API_KEY`。所有真实密钥都应只保存在本地 `.env` 中。
 
-```text
-http://127.0.0.1:8000/docs
-```
+后端默认运行于 <http://127.0.0.1:8000>，Swagger 文档位于 <http://127.0.0.1:8000/docs>。
 
-前端：
+### 4. 启动前端
+
+打开新的终端：
 
 ```powershell
 cd Paperclaw\frontend
+Copy-Item .env.example .env.local
 npm install
 npm run dev
 ```
 
-前端默认地址：
+访问 <http://127.0.0.1:5173>。
 
-```text
-http://127.0.0.1:5173
-```
-
-### 方式二：Docker 启动
-
-从后端目录启动服务：
+<details>
+<summary><strong>使用 Docker Compose 启动完整后端</strong></summary>
 
 ```powershell
 cd paperclaw_backend
 docker compose up -d
-```
-
-初始化数据库：
-
-```powershell
 docker compose exec api python scripts/init_db.py
 ```
 
-查看后端日志：
+查看日志或停止服务：
 
 ```powershell
 docker compose logs -f api
-```
-
-停止服务：
-
-```powershell
 docker compose down
 ```
 
-## Make 命令
+</details>
 
-`paperclaw_backend/Makefile` 仍保留可用，常用命令如下：
+<a id="api"></a>
 
-```bash
-make install      # 安装后端依赖
-make install-dev  # 安装后端依赖和开发工具
-make db-init      # 初始化数据库
-make db-drop      # 删除所有数据库表
-make run          # 启动 FastAPI 开发服务
-make test         # 运行测试
-make lint         # 运行 flake8 / isort 检查
-make format       # black + isort 格式化
-make clean        # 清理 Python 缓存
-make docker-up    # 启动 Docker 服务
-make docker-down  # 停止 Docker 服务
-make docker-logs  # 查看 API 日志
-```
+## 🔌 主要 API
 
-## API Endpoints (v1)
+所有接口挂载于 `/api/v1`：
 
-主要接口挂载在 `/api/v1` 下：
+| 模块 | 代表性接口 |
+| --- | --- |
+| 身份认证 | `POST /auth/register`、`POST /auth/login`、`GET /auth/me` |
+| 研究者 | `GET/POST /researchers/`、`PUT /researchers/{id}/stage` |
+| 导师与权限 | `GET/POST /advisors`、`POST /researchers/{id}/advisors` |
+| 论文与文件 | `POST /papers/upload`、`POST /files/upload`、`GET /files/{id}/status` |
+| 语义检索 | `POST /agent/semantic-search` |
+| 研究问答 | `POST /agent/query` |
 
-- `POST /auth/register`：注册用户
-- `POST /auth/login`：登录并获取 token
-- `POST /auth/logout`：退出登录
-- `GET /auth/me`：获取当前用户
-- `POST /auth/admin-users`：创建管理员/教师等用户
-- `GET /researchers/`、`POST /researchers/`：研究者列表与创建
-- `GET /researchers/{researcher_id}`、`PUT /researchers/{researcher_id}`、`DELETE /researchers/{researcher_id}`：研究者详情、更新与删除
-- `PUT /researchers/{researcher_id}/stage`：更新研究阶段
-- `GET /researchers/{researcher_id}/advisors`、`POST /researchers/{researcher_id}/advisors`：研究者-导师关系管理
-- `GET /advisors`、`POST /advisors`：导师列表与创建
-- `GET /advisors/{advisor_id}`、`PUT /advisors/{advisor_id}`、`DELETE /advisors/{advisor_id}`：导师详情、更新与删除
-- `POST /advisors/{advisor_id}/sub-fields`、`GET /advisors/{advisor_id}/sub-fields`：导师研究子领域管理
-- `POST /advisors/{advisor_id}/papers`、`GET /advisors/{advisor_id}/papers`：导师文献库管理
-- `POST /papers/`、`GET /papers/`：论文创建与列表
-- `POST /papers/upload`：上传论文
-- `POST /papers/chunks/backfill`：重建/补齐 chunk
-- `GET /papers/{paper_id}`、`PUT /papers/{paper_id}`、`DELETE /papers/{paper_id}`：论文详情、更新与删除
-- `POST /files/upload`：上传文件并创建解析任务
-- `GET /files/history`：文件上传历史
-- `GET /files/{file_id}/status`：文件解析状态
-- `GET /tasks/{task_id}`：任务状态
-- `GET /agent/builtin-collections`：内置文献库板块列表
-- `POST /agent/semantic-search`：本地语义检索
-- `POST /agent/query`：研究问答 Agent，支持本地文献、Tavily 网页搜索和 WoS 证据输入
+完整请求参数与响应结构请以本地 Swagger 文档为准。
 
-完整参数与响应结构以 Swagger 文档为准：`http://127.0.0.1:8000/docs`。
-
-## 环境变量
-
-后端配置文件位于：
+## 📁 项目结构
 
 ```text
-paperclaw_backend/.env
+Paperclaw/
+├── Paperclaw/frontend/          # React + TypeScript 前端
+├── paperclaw_backend/
+│   ├── app/api/v1/              # FastAPI 路由
+│   ├── app/models/              # SQLAlchemy 数据模型
+│   ├── app/schemas/             # Pydantic 请求与响应结构
+│   ├── app/services/            # 解析、检索、Agent 与外部搜索服务
+│   ├── scripts/                 # 初始化、导入与索引维护脚本
+│   └── docker-compose.yml       # PostgreSQL、Redis 与 API
+├── Paperclaw/                   # 架构与功能设计文档
+└── docs/assets/                 # README 图片与演示视频
 ```
 
-至少需要配置：
+## 📊 当前状态
 
-- `DATABASE_URL`
-- `SECRET_KEY`
-- `MINIMAX_API_KEY`
-- `TAVILY_API_KEY`
+项目目前处于 MVP 阶段，已完成研究者/导师关系管理、PDF 解析入库、本地文献语义检索、多源搜索编排和结构化研究问答主链路。
 
-可选配置：
+开发环境当前使用的法治与公共行政语料包含 281 篇文献、12,230 个检索片段；语料文件与数据库内容不随公开仓库分发，使用者需导入自己的 PDF。
 
-- `WOS_API_KEY`
-- `ENABLE_WEB_SEARCH`
-- `ENABLE_WOS_SEARCH`
-- `BOOTSTRAP_DEVELOPER_ADMIN_EMAIL`
-- `BOOTSTRAP_DEVELOPER_ADMIN_PASSWORD`
+### 已知限制
 
-## 已知限制
+- MiniMax、Tavily 与 Web of Science 功能需要分别配置有效 API Key。
+- 外部学术检索的可用性取决于对应服务账户与网络状态。
+- 当前界面与工作流仍在迭代，演示内容代表 MVP，而非最终产品形态。
 
-- Web of Science 集成代码已接入 WoS Starter API，但当前 Clarivate 服务器返回 `512 Internal server error`，因此 WoS 学术搜索暂时不可用。
-- Tavily 和 MiniMax 需要在 `paperclaw_backend/.env` 中配置有效 API Key。
-- 当前系统主要围绕已导入的法治与公共行政文献库进行检索，其他主题需要先导入相应 PDF 后再使用。
+## 📚 设计文档
+
+- [技术架构设计](Paperclaw/01_技术架构设计.md)
+- [导师库多分类管理实现细节](Paperclaw/02_导师库多分类管理_实现细节.md)
+- [项目结构设计](Paperclaw/03_项目结构设计.md)
+- [差异化功能分析](Paperclaw/paperclaw_差异化功能分析.md)
+
+## 🤝 参与项目
+
+欢迎通过 Issue 提交问题、功能建议或研究场景需求，也欢迎通过 Pull Request 参与改进。
+
+---
+
+<div align="center">
+  <strong>PaperClaw — From papers to research insight.</strong>
+</div>
